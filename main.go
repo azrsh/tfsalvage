@@ -141,7 +141,6 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		log.Printf("%#v\n", state)
 
 		for _, resource := range state.Values.RootModule.Resources {
 			tfstate[resource.Address] = resource
