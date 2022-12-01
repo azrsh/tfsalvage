@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -9,13 +10,14 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 )
+
+type set[T comparable] map[T]struct{}
 
 func toCtyVal(val interface{}) (cty.Value, error) {
 	switch v := val.(type) {
@@ -108,76 +110,17 @@ func generateNestedBlock(path []string, name string, source *tfjson.SchemaBlock,
 	return block
 }
 
-func main() {
-	hclfile := os.Args[1]
-
-	execPathBuf, err := exec.Command("which", "terraform").Output()
-	execPath := strings.SplitN(string(execPathBuf), "\n", 2)[0]
-	if err != nil {
-		panic(err)
-	}
-	log.Printf("executable path: %s\n", execPath)
-
-	workingDirBuf, err := exec.Command("pwd").Output()
-	workingDir := strings.SplitN(string(workingDirBuf), "\n", 2)[0]
-	if err != nil {
-		panic(err)
-	}
-	log.Printf("working directory: %s\n", workingDir)
-
-	tf, err := tfexec.NewTerraform(workingDir, execPath)
-	if err != nil {
-		panic(err)
-	}
-
+func printResources(tf *tfexec.Terraform, resources []*tfjson.StateResource) (*hclwrite.File, error) {
 	schema, err := tf.ProvidersSchema(context.TODO())
 	if err != nil {
-		panic(err)
-	}
-
-	tfstate := make(map[string]*tfjson.StateResource)
-	{
-		state, err := tf.Show(context.TODO())
-		if err != nil {
-			panic(err)
-		}
-
-		for _, resource := range state.Values.RootModule.Resources {
-			tfstate[resource.Address] = resource
-		}
-	}
-
-	src, err := ioutil.ReadFile(hclfile)
-	if err != nil {
-		panic(err)
-	}
-
-	file, diagnostics := hclwrite.ParseConfig(src, hclfile, hcl.InitialPos)
-	if diagnostics.HasErrors() {
-		panic(diagnostics)
-	}
-
-	body := file.Body()
-	var resources []*hclwrite.Block
-	for _, block := range body.Blocks() {
-		switch block.Type() {
-		case "resource":
-			resources = append(resources, block)
-		}
+		return nil, err
 	}
 
 	output := hclwrite.NewEmptyFile()
-	for _, resource := range resources {
-		resourceKind := resource.Labels()[0]
-		resourceName := resource.Labels()[1]
-
-		log.Printf("resource address: %s", resourceKind+"."+resourceName)
-
-		state := tfstate[resourceKind+"."+resourceName]
-
+	for _, state := range resources {
 		var resourceSchema *tfjson.Schema
 		for _, providerSchema := range schema.Schemas {
-			if schema, ok := providerSchema.ResourceSchemas[resourceKind]; ok {
+			if schema, ok := providerSchema.ResourceSchemas[state.Type]; ok {
 				resourceSchema = schema
 				break
 			}
@@ -185,8 +128,93 @@ func main() {
 
 		attribute := state.AttributeValues
 		newResource := generateNestedBlock([]string{}, "resource", resourceSchema.Block, attribute)
-		newResource.SetLabels(resource.Labels())
+		newResource.SetLabels([]string{state.Type, state.Name})
 		output.Body().AppendBlock(newResource)
+	}
+
+	return output, nil
+}
+
+func main() {
+	var (
+		include = flag.Bool("include", false, "Mode that salvages only the resources listed on standard input.")
+		exclude = flag.Bool("exclude", false, "Mode that excludes and salvages the resources listed in stdin.")
+	)
+	flag.Parse()
+	if *include && *exclude {
+		log.Fatalln("cannnot use include flag and exclude flag at the same time.")
+	}
+
+	execPathBuf, err := exec.Command("which", "terraform").Output()
+	execPath := strings.SplitN(string(execPathBuf), "\n", 2)[0]
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("executable path: %s\n", execPath)
+
+	workingDirBuf, err := exec.Command("pwd").Output()
+	workingDir := strings.SplitN(string(workingDirBuf), "\n", 2)[0]
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("working directory: %s\n", workingDir)
+
+	tf, err := tfexec.NewTerraform(workingDir, execPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var resources []*tfjson.StateResource
+	{
+		state, err := tf.Show(context.TODO())
+		if err != nil {
+			log.Fatal(err)
+		}
+		if state.Values == nil {
+			log.Fatalf("here is not Terraform directory: %s", workingDir)
+		}
+		if *include {
+			stdin, err := ioutil.ReadAll(os.Stdin)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			includeList := strings.Fields(string(stdin))
+			includeSet := make(set[string])
+			for _, item := range includeList {
+				includeSet[item] = struct{}{}
+			}
+
+			for _, resource := range state.Values.RootModule.Resources {
+				if _, ok := includeSet[resource.Address]; ok {
+					resources = append(resources, resource)
+				}
+			}
+		} else if *exclude {
+			stdin, err := ioutil.ReadAll(os.Stdin)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			excludeList := strings.Fields(string(stdin))
+			excludeSet := make(set[string])
+			for _, item := range excludeList {
+				excludeSet[item] = struct{}{}
+			}
+
+			for _, resource := range state.Values.RootModule.Resources {
+				if _, ok := excludeSet[resource.Address]; !ok {
+					resources = append(resources, resource)
+				}
+			}
+		} else {
+			resources = state.Values.RootModule.Resources
+		}
+	}
+
+	output, err := printResources(tf, resources)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	output.WriteTo(os.Stdout)
