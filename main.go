@@ -40,7 +40,7 @@ func toCtyVal(val interface{}) (cty.Value, error) {
 			return cty.ListVal(values), nil
 		}
 	case map[string]interface{}:
-		var values map[string]cty.Value
+		values := make(map[string]cty.Value)
 		for k, v := range v {
 			ctyVal, err := toCtyVal(v)
 			if err != nil {
