@@ -28,7 +28,7 @@ resource.black_listed3
 EOF | tfsalvage -exclude > salvaged.tf
 ```
 
-## Usecase: Import resources
+## Use-case: Import resources
 
 You can salvage an HCL file from imported tfstate.
 
@@ -39,6 +39,6 @@ echo 'hoge.fuga' | tfsalvage -include > salvaged.tf
 
 ## Limitations
 
-- This command knows nothing beyond what is provided by the terraform-provider schema.
+- This command knows nothing beyond what is provided by the Terraform provider schema.
   - For example, it is not possible to automatically remove attributes with the same value as the default value set by the cloud vendor.
 - Cannot control the order of resources, their attributes, or blocks. Because this command don't have such an flag.
