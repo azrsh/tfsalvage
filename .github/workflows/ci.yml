@@ -54,4 +54,4 @@ jobs:
         with:
           fail_on_error: true
           go_version_file: go.mod
-          filter_mode: ${{ (github.ref_name == 'master' && 'nofilter') || 'added' }}
+          filter_mode: ${{ (github.ref_name == 'main' && 'nofilter') || 'added' }}
