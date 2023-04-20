@@ -42,21 +42,27 @@ func toCtyVal(val interface{}) (cty.Value, error) {
 			return cty.ListVal(values), nil
 		}
 	case map[string]interface{}:
-		values := make(map[string]cty.Value)
-		for k, v := range v {
-			ctyVal, err := toCtyVal(v)
-			if err != nil {
-				return cty.NilVal, err
+		if len(v) == 0 {
+			return cty.MapValEmpty(cty.NilType), nil
+		} else {
+			values := make(map[string]cty.Value)
+			for k, v := range v {
+				ctyVal, err := toCtyVal(v)
+				if err != nil {
+					return cty.NilVal, err
+				}
+
+				values[k] = ctyVal
 			}
 
-			values[k] = ctyVal
-		}
+			if !cty.CanMapVal(values) {
+				return cty.NilVal, fmt.Errorf("cannnot convert to map: %#v", values)
+			}
 
-		if !cty.CanMapVal(values) {
-			return cty.NilVal, fmt.Errorf("cannnot convert to map: %#v", values)
+			return cty.MapVal(values), nil
 		}
-
-		return cty.MapVal(values), nil
+	case nil:
+		return cty.NilVal, nil
 	default: // expect primitive value
 		ctyType, err := gocty.ImpliedType(v)
 		if err != nil {
