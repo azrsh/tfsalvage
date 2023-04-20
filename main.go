@@ -104,7 +104,7 @@ func generateNestedBlock(path []string, name string, source *tfjson.SchemaBlock,
 				block.Body().AppendBlock(nestedBlock)
 			}
 		} else {
-			log.Fatalf("not found schema: %s", strings.Join(path, "/"))
+			log.Fatalf("not found block schema: %s", strings.Join(path, "/"))
 		}
 	}
 	return block
@@ -118,12 +118,19 @@ func printResources(tf *tfexec.Terraform, resources []*tfjson.StateResource) (*h
 
 	output := hclwrite.NewEmptyFile()
 	for _, state := range resources {
+		if state.Mode != tfjson.ManagedResourceMode {
+			continue
+		}
+
 		var resourceSchema *tfjson.Schema
 		for _, providerSchema := range schema.Schemas {
 			if schema, ok := providerSchema.ResourceSchemas[state.Type]; ok {
 				resourceSchema = schema
 				break
 			}
+		}
+		if resourceSchema == nil {
+			log.Fatalf("not found resource schema: %s", state.Type)
 		}
 
 		attribute := state.AttributeValues
