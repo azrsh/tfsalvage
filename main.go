@@ -151,15 +151,13 @@ func main() {
 		log.Fatalln("cannnot use include flag and exclude flag at the same time.")
 	}
 
-	execPathBuf, err := exec.Command("which", "terraform").Output()
-	execPath := strings.SplitN(string(execPathBuf), "\n", 2)[0]
+	execPath, err := exec.LookPath("terraform")
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("executable path: %s\n", execPath)
 
-	workingDirBuf, err := exec.Command("pwd").Output()
-	workingDir := strings.SplitN(string(workingDirBuf), "\n", 2)[0]
+	workingDir, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
 	}
