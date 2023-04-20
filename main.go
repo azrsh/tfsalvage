@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -174,7 +174,7 @@ func main() {
 			log.Fatalf("here is not Terraform directory: %s", workingDir)
 		}
 		if *include {
-			stdin, err := ioutil.ReadAll(os.Stdin)
+			stdin, err := io.ReadAll(os.Stdin)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -191,7 +191,7 @@ func main() {
 				}
 			}
 		} else if *exclude {
-			stdin, err := ioutil.ReadAll(os.Stdin)
+			stdin, err := io.ReadAll(os.Stdin)
 			if err != nil {
 				log.Fatal(err)
 			}
