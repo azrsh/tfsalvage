@@ -5,8 +5,8 @@ go 1.19
 require (
 	github.com/hashicorp/hcl/v2 v2.16.2
 	github.com/hashicorp/terraform-exec v0.18.1
-	github.com/hashicorp/terraform-json v0.16.0
-	github.com/zclconf/go-cty v1.13.1
+	github.com/hashicorp/terraform-json v0.17.1
+	github.com/zclconf/go-cty v1.13.2
 )
 
 require (
